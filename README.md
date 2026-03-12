@@ -1,8 +1,5 @@
 # DPL-PPO: Safe and Efficient Indoor UAV Navigation via Differentiable Physics Guidance and Lagrangian Constraint Optimization
 
-**Liunuoya Yang, Yuanda Wang, Jingyu Liu**  
-*School of Automation, Southeast University, Nanjing, China*
-
 ---
 
 ## Overview
