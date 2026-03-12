@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# 中间训练检查点（保留 final 模型）
+agent/model_SB3/leader_phase1_episode_*.zip
+agent/model_SB3/state_norm_params_ep*.npz
+
+# TensorBoard 日志（体积大）
+agent/log_SB3/tensorboard/
+
+# 批量测试结果（体积大）
+agent/log_SB3/batch_*/
+
+# VS Code
+.vscode/
+
+# 系统文件
+.DS_Store
+Thumbs.db

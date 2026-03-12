@@ -1,0 +1,102 @@
+# 物理引导PPO配置文件
+# 基于论文《Learning vision-based agile flight via differentiable physics》
+
+physics:
+  # 仿真参数
+  dt: 0.0333  # 时间步长（1/30秒）
+  horizon: 10   # 预测未来步数（稳定性优先）
+  
+  # 安全参数
+  safe_distance: 2.5      # 🔥 安全距离（米）- 从2.0微调到2.3（仅+15%，避免过度敏感）
+  max_acceleration: 5.0   # 最大加速度（m/s²）
+  drone_radius: 0.2       # 无人机半径（米）
+  
+  # 🔥 损失权重（保守方案：恢复成功配置+微调）
+  weights:
+    velocity: 0.15        # 🔥 速度跟踪权重（恢复原值，主导方向引导）
+    obstacle: 1.0        # 🔥 障碍物规避权重
+    smooth: 0.1           # 🔥 控制平滑性权重
+    energy: 0.02          # 🔥 能量效率权重（保持原值）
+    feasibility: 0.1     # 🔥 动力学可行性权重（保持原值）
+  
+  # 时间衰减
+  decay_alpha: 0.5        # 梯度衰减系数（防止梯度爆炸）
+  
+  # 训练参数（三阶段策略：快速建立+平台稳定+轻微精修）
+  lambda_phys_init: 0.1    # 🔥 初始物理损失权重
+  lambda_phys_min: 0.1     # 最小权重
+  lambda_phys_max: 0.25    # 🔥 最大权重（0-50%: 0.1→0.2, 50-100%: 0.2平台）
+                           # 原理：保持物理占比稳定在25-35%，避免后期物理主导导致过度保守
+  physics_update_freq: 6   # 🔥 物理校正频率（每6步更新1次）
+
+  # ================================
+  # 🆕 约束优化（拉格朗日对偶法，可选）
+  # 目的：把“保守/激进/节能”等行为特性变成可量化约束目标，并由对偶变量λ自动调节
+  # 说明：enabled=false 时完全不启用，保持原始训练行为不变
+  # ================================
+  lagrangian:
+    enabled: true     # 是否启用拉格朗日对偶约束优化
+    lr: 1e-3            # 🔥 对偶变量更新步长（降低震荡，更平滑收敛）
+    clip: 10.0            # λ上限，防止权重无限增大
+    warmup_updates: 0   
+
+  constraints:
+    # 违约率目标（0.0最保守；允许>0则更“激进”）
+    obstacle_violation_rate_target: 0.05  # 🔥 折中方案：5%碰撞率（平衡安全与效率）
+    feasibility_violation_rate_target: 0.02  # 动力学违约率保持2%
+
+    # 能耗约束目标（PhysicsLossCalculator 输出的 energy_raw 均值；不设置则不启用能耗约束）
+    # energy_raw_target: 0.02
+
+  constraint_normalization:
+    # 约束项的std缩放（独立于 physics_total 的归一化），用于让不同约束量级更稳定
+    momentum: 0.995
+    warmup_updates: 1000
+    std_floor: 1.0e-3
+    clip: 2.0
+
+# PPO参数（与物理引导结合）
+ppo:
+  learning_rate_init: 3.0e-4
+  learning_rate_final: 1.0e-5
+  n_steps: 2048
+  batch_size: 64         
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.15
+  clip_range_vf: 0.2
+  ent_coef: 0.001          
+  vf_coef: 0.8
+  max_grad_norm: 0.5
+  use_sde: true
+  sde_sample_freq: 4
+  target_kl: 0.05
+
+# 实验配置
+experiment:
+  # 推荐的lambda_phys值
+  lambda_phys_options:
+    conservative: 0.05    # 保守值：温和引导
+    recommended: 0.1      # 推荐值：平衡效果
+    aggressive: 0.5       # 激进值：强引导（可能过拟合）
+  
+  # 消融实验组
+  ablation_groups:
+    - name: "baseline"
+      use_physics_guidance: false
+      
+    - name: "velocity_only"
+      use_physics_guidance: true
+      lambda_phys: 0.1
+      enabled_losses: ["velocity"]
+      
+    - name: "obstacle_only"
+      use_physics_guidance: true
+      lambda_phys: 0.1
+      enabled_losses: ["obstacle"]
+      
+    - name: "full"
+      use_physics_guidance: true
+      lambda_phys: 0.1
+      enabled_losses: ["velocity", "obstacle", "smooth", "energy", "feasibility"]
